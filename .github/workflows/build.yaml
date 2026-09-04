@@ -1,0 +1,127 @@
+---
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    permissions:
+      contents: read
+      issues: read
+      checks: write
+      pull-requests: write
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ['3.12']
+    runs-on: ['ubuntu-latest']
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Free Disk Space
+        uses: twsl/gha-free-disk-space@v1
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-groups --all-extras --frozen
+
+      - name: Run prek
+        uses: j178/prek-action@v2
+        continue-on-error: true
+        env:
+          SKIP: uv-lock
+
+      - name: Build dependencies
+        run: uv build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.event.repository.name }}-${{ runner.os }}-${{ matrix.python-version }}-${{ github.sha }}
+          path: dist/
+        if: ${{ always() }}
+
+      - name: Run tests
+        run: |
+          uv run pytest -c pyproject.toml \
+          --cov-config=pyproject.toml \
+          --cov-report=html \
+          --cov-report=xml:coverage-${{ runner.os }}-${{ matrix.python-version }}.xml \
+          --junitxml=junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml \
+          --benchmark-disable
+
+      # MishaKav/pytest-coverage-comment
+
+      - name: Coverage summary report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage-${{ runner.os }}-${{ matrix.python-version }}.xml
+          badge: true
+          format: "markdown"
+          output: "both"
+        if: ${{ always() }}
+
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-coverage-${{ runner.os }}-${{ matrix.python-version }}
+          path: code-coverage-results.md
+        if: ${{ always() }}
+
+      - name: Read code coverage file
+        id: coverage-file
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: code-coverage-results.md
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' && runner.os == 'Linux' }}
+
+      - name: Add coverage PR comment
+        uses: marocchino/sticky-pull-request-comment@v3
+        with:
+          header: Code Coverage ${{ runner.os }} ${{ matrix.python-version }}
+          message: |
+            ## Code Coverage ${{ runner.os }} ${{ matrix.python-version }}
+            ${{ steps.coverage-file.outputs.content }}
+
+            Results for commit ${{ github.sha }}.
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' && runner.os == 'Linux' }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        with:
+          name: pytest-results-${{ runner.os }}-${{ matrix.python-version }}
+          path: junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
+        if: ${{ always() }}
+
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          check_name: Test Results ${{ runner.os }} ${{ matrix.python-version }}
+          report_individual_runs: true
+          files: junit/test-results-${{ runner.os }}-${{ matrix.python-version }}.xml
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.workflow_run.conclusion != 'skipped' && runner.os == 'Linux' }}

@@ -1,0 +1,95 @@
+---
+name: Documentation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  artifacts-name: docs
+  python-version: "3.12"
+
+jobs:
+  build-docs:
+    name: Build docs
+    runs-on: ['ubuntu-latest']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Free Disk Space
+        uses: twsl/gha-free-disk-space@main
+
+      - name: Set up Python ${{ env.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "**/uv.lock"
+
+      - name: Install dependencies
+        run: uv sync --all-groups --all-extras --frozen
+
+      - name: Build dependencies
+        run: uv build
+
+      - name: Build MkDocs docs
+        env:
+          JUPYTER_PLATFORM_DIRS: 1
+        run: uv run mkdocs build -f ./mkdocs.yml -d ./_build/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.artifacts-name }}
+          path: ./_build/
+        if: ${{ always() }}
+
+  deploy-docs:
+    name: Deploy docs
+    needs: build-docs
+    permissions:
+      pages: write
+      id-token: write
+    runs-on: ['ubuntu-latest']
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          # path: artifacts/${{ env.artifacts-name }}/
+          path: artifacts/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,2 @@
+from lit_deltalake.__about__ import __version__
+from lit_deltalake.datamodule import DeltaDataModule
