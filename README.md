@@ -52,40 +52,56 @@ python -m pip install lit-deltalake
 
 ```python
 from lit_deltalake.dataloaders import create_pytorch_dataloader
-from lit_deltalake.datasets import Filter
+from lit_deltalake.readers.types import Filter
+import lightning
+import torch
+from torch import nn
+from torch.utils.data import DataLoader
+
 
 loader = create_pytorch_dataloader(
     "/path/to/training-table",
     columns=("feature_a", "feature_b", "label"),
-    filters=(Filter("split", "=", "train"),),
-    version=42,
+    filters=(Filter("split", lambda column, value: column == value, "train"),),
     batch_size=128,
     num_workers=4,
     multiprocessing_context="spawn",
 )
 
-for batch in loader:
-    features = batch["feature_a"], batch["feature_b"]
-    labels = batch["label"]
-    # Train your LightningModule.
-```
 
-Use `multiprocessing_context="spawn"` or `"forkserver"` with Delta-rs workers. Delta-rs is the supported reader for
-multi-rank DDP: each rank/worker scans only its assigned source fragments. Fragment sizes can differ, so this optimizes
-scan locality rather than guaranteeing perfectly equal row counts.
+class EventsDataModule(lightning.LightningDataModule):
+    def __init__(self) -> None:
+        super().__init__()
+        self.loader = loader
 
-Delta-rs streams Arrow scan batches and supports source sharding across DataLoader workers and DDP ranks. Spark and
-Sail stream rows through `DataFrame.toLocalIterator()`, keeping client memory bounded by the largest Spark partition
-plus one Arrow batch. They require `num_workers=0` and reject multi-rank DDP loading because each rank would otherwise
-execute the full query. Repartition a table when its individual Spark partitions are too large for driver memory.
-Configure cloud storage credentials through the Spark session's Hadoop settings when using those readers.
+    def train_dataloader(self) -> DataLoader:
+        return self.loader
 
-Launch the ImageNet example with local DDP:
 
-```bash
-uv run torchrun --standalone --nproc_per_node=2 \
-    examples/imagenet/ddp_spark_pytorch_distributor.py TRAIN_TABLE VALIDATION_TABLE \
-    --accelerator gpu --devices 1 --strategy ddp
+class Classifier(lightning.LightningModule):
+    def __init__(self, learning_rate: float = 1e-3) -> None:
+        super().__init__()
+        self.model = nn.Linear(2, 2)
+        self.learning_rate = learning_rate
+        self.loss_function = nn.CrossEntropyLoss()
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        return self.model(features)
+
+    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:
+        del batch_idx
+        features = torch.stack((batch["feature_a"], batch["feature_b"]), dim=1).float()
+        labels = batch["label"]
+        loss = self.loss_function(self(features), labels)
+        self.log("train_loss", loss)
+        return loss
+
+    def configure_optimizers(self) -> torch.optim.Optimizer:
+        return torch.optim.AdamW(self.parameters(), lr=self.learning_rate)
+
+
+trainer = lightning.Trainer(max_epochs=10)
+trainer.fit(Classifier(), datamodule=EventsDataModule())
 ```
 
 ## Examples
