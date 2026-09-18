@@ -2,9 +2,8 @@
 
 [![Build](https://github.com/twsl/lit-deltalake/actions/workflows/build.yaml/badge.svg)](https://github.com/twsl/lit-deltalake/actions/workflows/build.yaml)
 [![Documentation](https://github.com/twsl/lit-deltalake/actions/workflows/docs.yaml/badge.svg)](https://github.com/twsl/lit-deltalake/actions/workflows/docs.yaml)
-
-<!--- [![PyPI - Package Version](https://img.shields.io/pypi/v/lit-deltalake?logo=pypi&style=flat&color=orange)](https://pypi.org/project/lit-deltalake/) -->
-<!--- [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lit-deltalake?logo=pypi&style=flat&color=blue)](https://pypi.org/project/lit-deltalake/) -->
+[![PyPI - Package Version](https://img.shields.io/pypi/v/lit-deltalake?logo=pypi&style=flat&color=orange)](https://pypi.org/project/lit-deltalake/)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lit-deltalake?logo=pypi&style=flat&color=blue)](https://pypi.org/project/lit-deltalake/)
 
 [![Docs with MkDocs](https://img.shields.io/badge/MkDocs-docs?style=flat&logo=materialformkdocs&logoColor=white&color=%23526CFE)](https://squidfunk.github.io/mkdocs-material/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -17,7 +16,7 @@
 [![SPEC 0 — Minimum Supported Dependencies](https://img.shields.io/badge/SPEC-0-green?labelColor=%23004811&color=%235CA038)](https://scientific-python.org/specs/spec-0000/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Bring [Delta Lake](https://github.com/delta-io/delta) to Pytorch Lightning
+Bring [Delta Lake](https://github.com/delta-io/delta) to [Pytorch Lightning](https://github.com/lightning-ai/pytorch-lightning)
 
 ## Features
 
